@@ -1,0 +1,132 @@
+---
+title: "Working with Spatial Data in R"
+author: "Patrick Sherry"
+date: 05/11/2026
+format: html
+---
+
+## Data
+
+Alaska regional boundaries: Kibele, J. and J. Clark. 2018. State of Alaska's Salmon and People Regional Boundaries. Knowledge Network for Biocomplexity. <https://doi.org/10.5063/F1125QWP>
+
+Community locations and population: Clark, J., S. Ochs, D. Strong, and National Historic Geographic Information System. 2018. Languages used in Alaskan households, 1990-2015. Knowledge Network for Biocomplexity. <https://doi.org/10.5063/F11G0JHX>
+
+
+```{r}
+library(readr)
+library(here)
+library(sf)
+library(ggplot2)
+library(leaflet)
+library(scales)
+library(ggspatial)
+library(dplyr)
+```
+
+```{r}
+# read in shapefile using read_sf()
+ak_rgns_sf <- read_sf(here("data/ak_regions_simp.shp"))
+
+# read in population data
+pop_df <- read_csv(here("data/alaska_population.csv"))
+
+pop_4326_sf <- st_as_sf(pop_df,
+                        coords = c('lng', 'lat'),
+                        crs = 4326,
+                        remove = F)
+
+ak_rgns_3338_sf <- ak_rgns_sf %>%
+    st_transform(crs = 3338)
+
+st_crs(ak_rgns_3338_sf)
+
+
+pop_3338_sf <- st_transform(pop_4326_sf, 
+                            crs = 3338)
+pop_joined_sf <- st_join(pop_3338_sf, 
+                         ak_rgns_3338_sf, 
+                         join = st_within)
+
+pop_rgn_df <- pop_joined_sf %>%
+    st_drop_geometry() %>%
+    group_by(region) %>%
+    summarize(total_pop = sum(population))
+
+pop_rgn_3338_sf <- left_join(ak_rgns_3338_sf, 
+                             pop_rgn_df, 
+                             by = "region")
+
+write_sf(pop_rgn_3338_sf, here("data/ak_regions_population.shp"))
+
+
+rivers_3338_sf <- read_sf(here("data/ak_rivers_simp.shp"))
+
+pop_3857_sf <- st_transform(pop_3338_sf, 
+                         crs = 3857)
+
+epsg3338 <- leaflet::leafletCRS(
+    crsClass = "L.Proj.CRS",
+    code = "EPSG:3338",
+    proj4def =  "+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
+    resolutions = 2 ^ (16:7)
+)
+
+pop_rgn_4326_sf <- pop_rgn_3338_sf %>% 
+    st_transform(crs = 4326)
+
+pal <- colorNumeric(palette = "Reds", domain = pop_rgn_4326_sf$total_pop)
+
+m <- leaflet(options = leafletOptions(crs = epsg3338)) %>%
+    addPolygons(
+        data = pop_rgn_4326_sf,
+        fillColor = ~ pal(total_pop),
+        weight = 1,
+        color = "black",
+        fillOpacity = 1
+    ) %>%
+    addCircleMarkers(
+        data = pop_4326_sf,
+        lat = ~ lat,
+        lng = ~ lng,
+        radius = ~ log(population / 500),
+        # arbitrary scaling
+        fillColor = "gray",
+        fillOpacity = 1,
+        weight = 0.25,
+        color = "black",
+        label = ~ paste0(pop_4326_sf$city, ", population ", comma(pop_4326_sf$population))
+    ) %>%
+    addLegend(
+        position = "bottomleft",
+        pal = pal,
+        values = range(pop_rgn_4326_sf$total_pop),
+        title = "Total Population"
+    )
+
+m
+
+
+
+```
+## a08 – Spatial Data Analysis
+
+### Decision 1: CRS 3338 (Alaska Albers) for the spatial join
+
+I transformed both the population points and the Alaska regions shapefile to EPSG:3338 before running `st_join()`.
+The spatial join requires both layers to share the same CRS, and Alaska Albers is the standard projected CRS for
+Alaska because it minimizes area distortion across the state's wide east-west. Using a projected CRS rather than a
+geographic CRS like WGS84 makes distance and area calculations more accurate.
+
+### Decision 2: `st_within` vs `st_intersects` for assigning cities to regions
+
+I used `join = st_within` so that each city point is assigned only to the region it is completely inside.
+`st_intersects`, would also match points that are on a region boundary, which could assign a city to two regions
+and misrepresent population totals for border areas. Because city locations are points, `st_within` is the more
+precise.
+
+### Decision 3: `ggspatial` basemap
+
+I included `annotation_map_tile()` from `ggspatial` to provide geographic context behind the static ggplot2 map.
+For the regional-level Alaska map, the basemap helps orient the reader and confirms that the region aligns with
+real geography. For the interactive Leaflet version, the basemap is redundant since Leaflet's default tiles so I
+omitted it there.
