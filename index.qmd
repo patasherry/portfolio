@@ -12,4 +12,5 @@ title: "Patrick Tasherry — Data Science Portfolio"
 
 ## Assignments
 
+- [Tidy Data](assignments/a02.html)
 - [Geospatial Vector Analysis](assignments/intro-to-spatial-data.html)
