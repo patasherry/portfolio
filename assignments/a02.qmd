@@ -1,0 +1,24 @@
+---
+title: "Tidy Data Evaluation"
+author: "Patrick Sherry"
+date: "2026-02-26"
+format: html
+---
+
+## Introduction
+#This dataset is from an ADP-Glo assay used to test kinase activity in my enzyme of study. 
+#Tidy data requires that each variable be stored in its own column, each observation be stored in its own row, and each value occupy a single cell. The goal of this analysis is to determine whether the exported assay data meets those criteria.
+
+## Data
+
+```{r}
+library(here)
+library(readr)
+
+my_data <- read_csv(here("data", "RAW", "RAW_DATA_ADPGLO_806.csv"))
+
+head(my_data)
+```
+##Analysis 
+#The dataset is mostly clean and readable. It is not fully tidy because replicates are stored in separate columns instead of one Replicate column. It also does not contain primary/foreign keys but it does have identifiers.
+#In the table, Condition is the primary key. There are no foreign keys because there is only one table.
