@@ -1,0 +1,15 @@
+---
+title: "Patrick Tasherry — Data Science Portfolio"
+---
+
+## Course Lessons
+
+- Introduction to Literate Analysis Using Quarto
+- Tidy Data
+- Cleaning and Wrangling Data
+- Data Visualization
+- Working with Spatial Data
+
+## Assignments
+
+- [Geospatial Vector Analysis](assignments/intro-to-spatial-data.html)
